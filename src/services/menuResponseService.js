@@ -1,8 +1,4 @@
-import Session from '../models/session.js';
-import User from '../models/user.js';
-import redisClient from '../utils/redisClient.js';
 import generateGeminiResponse from './googleGeminiService.js';
-import sendMessage from './messageService.js';
 import { createOrder } from './orderService.js';
 import { applyFirstBuyCoffeePromotion, checkFirstBuyCoffeePromotion, useFirstBuyCoffeePromotion } from './promotionService.js';
 
@@ -63,23 +59,7 @@ export const handleMenuResponse = async (
     }
 
     // Optimizar el menú JSON para reducir tokens
-    let businessCode;
-    let optimizedMenu;
-    const businessIdStr = businessId.toString();
-
-    // Compare the normalized string values
-    if (businessIdStr === '67beead2f7bea15c92cb8915') {
-      console.log('Entrando al condicional para negocio específico');
-      businessCode = '102';
-      optimizedMenu = optimizeMenu(menuJSON, businessCode);
-    } else if (businessIdStr === '67bef629a16198ea923b837f') {
-      console.log('Entrando al condicional para negocio específico 2');
-      businessCode = '103';
-      optimizedMenu = optimizeMenu(menuJSON, businessCode);
-    } else {
-      console.log('Usando optimización estándar del menú');
-      optimizedMenu = optimizeMenu(menuJSON);
-    }
+    const optimizedMenu = optimizeMenu(menuJSON);
 
     // Construir el historial de contexto como parte del prompt del sistema
     const historyContext = fullHistory.length > 0
@@ -92,383 +72,341 @@ export const handleMenuResponse = async (
     console.log('Historial completo:', fullHistory);
     if (fullHistory.length <= 4) {
       // Construir un prompt completo con todas las instrucciones y contexto
-      if (businessCode === '103') {
-        systemPrompt = `
-        BUSINESS PROMPT: 
-        Actúa como un "Verificador de pedidos de restaurante". Tu tarea principal es procesar pedidos de manera extremadamente precisa y educada, asegurándote de no mezclar categorías, inventar productos ni aceptar combinaciones incorrectas. Antes de responder o realizar cualquier acción, razona paso a paso en tu análisis interno y verifica cuidadosamente cada detalle contra el menú proporcionado. Sigue este enfoque metódico para evitar errores:
-        Sé rigurosamente preciso. Razona paso a paso internamente: identifica cada producto y extra solicitado, compáralos estrictamente con el JSON, rechaza ítems que no coincidan o sean mezclas, y revisa antes de responder. Sé educado y claro. No mezcles ni inventes productos ni combinaciones.
+      systemPrompt = `
+        [ROLE]
+        Acts as a friendly and efficient restaurant waiter/waitress. Your main goal is to accurately take orders and help customers with menu questions.
+        
+        [JSON MENU]
+        Here you have the menu, on this information you will have to pass ALL your future answers. 
+        Against this information you will have to evaluate each request (item, extra or price) that they tell you and give.
+        ${JSON.stringify(optimizedMenu)}
 
-        MENU: {  
-          "categories": [  
-            {  
-              "name": "Pizzas",  
-              "items": [  
-                {"name": "Focaccia Oregano", "price": 5.5, "extras": [{"name": "Oregano", "price": 0.5, "available": true}, {"name": "Aceite", "price": 0.5, "available": true}, {"name": "Sal", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Focaccia de Ajo", "price": 6.5, "extras": [{"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Ajo", "price": 0.5, "available": true}, {"name": "Perejil", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Napoletana", "price": 7.5, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Anchoas", "price": 0.5, "available": true}, {"name": "Oregano", "price": 0.5, "available": true}, {"name": "Ajo", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Margherita", "price": 8.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Prociutto", "price": 8.5, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Jamon", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Capricciosa", "price": 9.5, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Jamon", "price": 0.5, "available": true}, {"name": "Champiñones", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Atun", "price": 9.5, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Cebolla", "price": 0.5, "available": true}, {"name": "Atun", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Hawaii", "price": 9.5, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Jamon", "price": 0.5, "available": true}, {"name": "Piña", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Peperoni", "price": 10.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Peperoni", "price": 0.5, "available": true}], "available": true},  
-                {"name": "4 Quesos", "price": 10.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Gorgonzola", "price": 0.5, "available": true}, {"name": "Emmental", "price": 0.5, "available": true}, {"name": "Parmesano", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Vegetariana", "price": 10.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Muzzarella", "price": 0.5, "available": true}, {"name": "Calabacin", "price": 0.5, "available": true}, {"name": "Berenjena", "price": 0.5, "available": true}, {"name": "Champiñones", "price": 0.5, "available": true}, {"name": "Cebolla", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Calzone", "price": 10.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Jamon", "price": 0.5, "available": true}, {"name": "Champiñones", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Barbacoa", "price": 11.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Pollo", "price": 0.5, "available": true}, {"name": "Cebolla", "price": 0.5, "available": true}, {"name": "Salsa Barbacoa", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Frutti di Mare", "price": 10.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Calamares", "price": 0.5, "available": true}, {"name": "Mejillones", "price": 0.5, "available": true}, {"name": "Atun", "price": 0.5, "available": true}, {"name": "Anchoas", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Pizza Media Luna", "price": 12.0, "extras": [], "available": true},  
-                {"name": "Serrano", "price": 12.0, "extras": [{"name": "Tomate", "price": 0.5, "available": true}, {"name": "Mozzarella", "price": 0.5, "available": true}, {"name": "Jamon Serrano", "price": 0.5, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Cafetería",  
-              "items": [  
-                {"name": "Café Espresso", "price": 1.0, "extras": [], "available": true},  
-                {"name": "Café Cortado", "price": 1.3, "extras": [], "available": true},  
-                {"name": "Café con leche", "price": 1.8, "extras": [], "available": true},  
-                {"name": "Café con leche grande", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Café con leche sin lactosa", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Café con leche de soja", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Capuccino", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Capuccino grande", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Capuccino con Nata", "price": 3.0, "extras": [], "available": true},  
-                {"name": "ColaCao", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Café Americano", "price": 1.8, "extras": [], "available": true},  
-                {"name": "Café con Hielo", "price": 1.3, "extras": [], "available": true},  
-                {"name": "Chocolate Caliente", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Chocolate caliente con Nata", "price": 3.5, "extras": [], "available": true},  
-                {"name": "Barranquito sin", "price": 1.5, "extras": [], "available": true},  
-                {"name": "Barranquito con Licor", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Carajillo", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Ice Coffee", "price": 4.0, "extras": [], "available": true},  
-                {"name": "Ice Coffee con Nata", "price": 4.5, "extras": [], "available": true},  
-                {"name": "Té", "price": 1.5, "extras": [], "available": true},  
-                {"name": "Té con Limón", "price": 1.6, "extras": [], "available": true},  
-                {"name": "Té con Leche", "price": 1.6, "extras": [], "available": true},  
-                {"name": "Infusiones variadas", "price": 1.5, "extras": [], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Bebidas",  
-              "items": [  
-                {"name": "Zumo - Minute Maid", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Zumo Naranja Natural", "price": 4.0, "extras": [], "available": true},  
-                {"name": "Zumo Naranja Pequeño", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Zumo Natural 1 fruta", "price": 3.5, "extras": [], "available": true},  
-                {"name": "Zumo Natural 2 frutas", "price": 4.0, "extras": [], "available": true},  
-                {"name": "Zumo Natural mas de 2 frutas", "price": 4.0, "extras": [], "available": true},  
-                {"name": "Caña Amstel", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Jarra Amstel", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Heineken", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Dorada pilsen", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Dorada especial", "price": 2.7, "extras": [], "available": true},  
-                {"name": "Coronita", "price": 2.8, "extras": [], "available": true},  
-                {"name": "Coca Cola", "price": 2.8, "extras": [], "available": true},  
-                {"name": "Sprite", "price": 2.8, "extras": [], "available": true},  
-                {"name": "Fanta", "price": 2.8, "extras": [], "available": true},  
-                {"name": "Aquarius", "price": 2.8, "extras": [], "available": true},  
-                {"name": "FuzeTea", "price": 2.8, "extras": [], "available": true},  
-                {"name": "Tonica", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Mojito", "price": 8.0, "extras": [], "available": true},  
-                {"name": "Daiquiri", "price": 8.0, "extras": [], "available": true},  
-                {"name": "Margarita", "price": 7.0, "extras": [], "available": true},
-                {"name": "Caipirinha", "price": 7.0, "extras": [], "available": true},  
-                {"name": "Piña Colada", "price": 9.0, "extras": [], "available": true},  
-                {"name": "Sex on the beach", "price": 8.0, "extras": [], "available": true},  
-                {"name": "Aperol Spritz", "price": 7.0, "extras": [], "available": true},  
-                {"name": "Copa de vino de la casa", "price": 3.5, "extras": [], "available": true},  
-                {"name": "Botella de vino de la casa", "price": 13.0, "extras": [], "available": true},  
-                {"name": "Copa de vino seleccion", "price": 4.5, "extras": [], "available": true},  
-                {"name": "Botella de vino seleccion", "price": 20.0, "extras": [], "available": true},  
-                {"name": "Copa de Cava", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Botella de Cava", "price": 15.0, "extras": [], "available": true},  
-                {"name": "Cava Benjamin", "price": 15.0, "extras": [], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Burgers",  
-              "items": [  
-                {"name": "Classic", "price": 8.5, "extras": [{"name": "Ternera", "price": 0.5, "available": true}, {"name": "Cheddar", "price": 0.5, "available": true}, {"name": "Cebolla caramelizada", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Xalapa", "price": 9.5, "extras": [{"name": "Ternera", "price": 0.5, "available": true}, {"name": "Guacamole", "price": 0.5, "available": true}, {"name": "Jalapeño", "price": 0.5, "available": true}, {"name": "Tomate", "price": 0.5, "available": true}, {"name": "Lechuga", "price": 0.5, "available": true}, {"name": "Cebolla roja", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Atlanta", "price": 10.5, "extras": [{"name": "Ternera", "price": 0.5, "available": true}, {"name": "Cheddar", "price": 0.5, "available": true}, {"name": "Pepinillos", "price": 0.5, "available": true}, {"name": "Bacon", "price": 0.5, "available": true}, {"name": "Salsa barbacoa", "price": 0.5, "available": true}, {"name": "Lechuga", "price": 0.5, "available": true}, {"name": "Tomate", "price": 0.5, "available": true}, {"name": "Huevo", "price": 0.5, "available": true}, {"name": "Cebolla roja", "price": 0.5, "available": true}], "available": true},  
-                {"name": "Montevideo", "price": 9.5, "extras": [], "available": true},  
-                {"name": "Media Luna", "price": 13.9, "extras": [], "available": true},  
-                {"name": "Atenea", "price": 10.0, "extras": [], "available": true},  
-                {"name": "Nórdica", "price": 9.5, "extras": [], "available": true},  
-                {"name": "Roquefort", "price": 9.5, "extras": [], "available": true},  
-                {"name": "Pakistán", "price": 9.5, "extras": [], "available": true},  
-                {"name": "Vegetariana", "price": 9.5, "extras": [], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Pastas",  
-              "items": [  
-                {"name": "Lasaña Bolognesa", "price": 9.5, "extras": [], "available": true},  
-                {"name": "Lasaña Vegetal", "price": 9.0, "extras": [], "available": true},  
-                {"name": "Pasta al Pesto", "price": 8.0, "extras": [], "available": true},  
-                {"name": "Bolognesa", "price": 8.5, "extras": [], "available": true},  
-                {"name": "Carbonara", "price": 8.5, "extras": [], "available": true},  
-                {"name": "Paella Señorito de marisco", "price": 14.0, "extras": [], "available": true},  
-                {"name": "Ravioles", "price": 9.5, "extras": [], "available": true},  
-                {"name": "Tortellini", "price": 9.0, "extras": [], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Platos Combinados",  
-              "items": [  
-                {"name": "Costilla de Cerdo Barbacoa + Papas", "price": 11.5, "extras": [{"name": "Costilla de cerdo", "price": 1.0, "available": true}, {"name": "Salsa barbacoa", "price": 1.0, "available": true}, {"name": "Papas fritas", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Milanesa de Pollo + Papas + Ensalada", "price": 9.5, "extras": [{"name": "Pechuga de pollo", "price": 1.0, "available": true}, {"name": "Papas fritas", "price": 1.0, "available": true}, {"name": "Ensalada", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Milanesa de Ternera + Papas + Ensalada", "price": 10.0, "extras": [{"name": "Milanesa de ternera", "price": 1.0, "available": true}, {"name": "Papas fritas", "price": 1.0, "available": true}, {"name": "Ensalada", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Milanesa Napolitana", "price": 10.5, "extras": [{"name": "Milanesa de carne", "price": 1.0, "available": true}, {"name": "Salsa de tomate", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}, {"name": "Orégano", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Pollo a la Plancha + Papas + Ensalada", "price": 9.0, "extras": [{"name": "Pechuga de pollo", "price": 1.0, "available": true}, {"name": "Papas fritas", "price": 1.0, "available": true}, {"name": "Ensalada", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Calamares a la Romana", "price": 8.5, "extras": [{"name": "Calamares", "price": 1.0, "available": true}, {"name": "Papas fritas", "price": 1.0, "available": true}, {"name": "Ensalada", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Ración de Tortilla", "price": 3.5, "extras": [{"name": "Tortilla", "price": 1.0, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Ensaladas",  
-              "items": [  
-                {"name": "Ensalada de Pollo", "price": 7.5, "extras": [{"name": "Pollo", "price": 1.0, "available": true}, {"name": "Tomate", "price": 1.0, "available": true}, {"name": "Lechuga", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Ensalada César", "price": 9.0, "extras": [{"name": "Pollo", "price": 1.0, "available": true}, {"name": "Queso parmesano", "price": 1.0, "available": true}, {"name": "Salsa César", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Ensalada Mixta", "price": 7.5, "extras": [{"name": "Tomate", "price": 1.0, "available": true}, {"name": "Lechuga", "price": 1.0, "available": true}, {"name": "Aceitunas negras", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Ensalada Tropical", "price": 8.0, "extras": [{"name": "Piña", "price": 1.0, "available": true}, {"name": "Jamón", "price": 1.0, "available": true}, {"name": "Maíz", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Ensalada de Atún", "price": 8.5, "extras": [{"name": "Atún", "price": 1.0, "available": true}, {"name": "Pepino", "price": 1.0, "available": true}, {"name": "Zanahoria", "price": 1.0, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Fajitas (Wraps)",  
-              "items": [  
-                {"name": "Pollo Desmenuzado, Ensalada, Tomate y Cebolla", "price": 8.5, "extras": [{"name": "Pollo Desmenuzado", "price": 1.0, "available": true}, {"name": "Ensalada", "price": 1.0, "available": true}, {"name": "Tomate", "price": 1.0, "available": true}, {"name": "Cebolla", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Pescado Empanado, Ensalada y Tomate", "price": 9.0, "extras": [{"name": "Pescado Empanado", "price": 1.0, "available": true}, {"name": "Ensalada", "price": 1.0, "available": true}, {"name": "Tomate", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Pollo a la plancha, cheddar, bacon, ensalada y tomate", "price": 9.5, "extras": [{"name": "Pollo a la plancha", "price": 1.0, "available": true}, {"name": "Cheddar", "price": 1.0, "available": true}, {"name": "Bacon", "price": 1.0, "available": true}, {"name": "Ensalada", "price": 1.0, "available": true}, {"name": "Tomate", "price": 1.0, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Sandwiches",  
-              "items": [  
-                {"name": "Mixto", "price": 2.5, "extras": [{"name": "Queso extra", "price": 1.0, "available": true}, {"name": "Jamón extra", "price": 1.0, "available": true}, {"name": "Pan sin gluten", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Americano", "price": 5.0, "extras": [{"name": "Queso extra", "price": 1.0, "available": true}, {"name": "Jamón extra", "price": 1.0, "available": true}, {"name": "Mayonesa", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Hawaii", "price": 4.0, "extras": [{"name": "Piña extra", "price": 1.0, "available": true}, {"name": "Jamón extra", "price": 1.0, "available": true}, {"name": "Queso extra", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Atún y ensalada", "price": 3.5, "extras": [{"name": "Atún extra", "price": 1.0, "available": true}, {"name": "Tomate extra", "price": 1.0, "available": true}, {"name": "Mayonesa", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Pollo mechado", "price": 4.0, "extras": [{"name": "Pollo extra", "price": 1.0, "available": true}, {"name": "Lechuga extra", "price": 1.0, "available": true}, {"name": "Salsa especial", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Pechuga de pollo", "price": 4.0, "extras": [{"name": "Pollo extra", "price": 1.0, "available": true}, {"name": "Lechuga extra", "price": 1.0, "available": true}, {"name": "Tomate extra", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Focaccia de Atún", "price": 5.5, "extras": [{"name": "Atún extra", "price": 1.0, "available": true}, {"name": "Tomate extra", "price": 1.0, "available": true}, {"name": "Salsa especial", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Focaccia Mixta", "price": 5.0, "extras": [{"name": "Queso extra", "price": 1.0, "available": true}, {"name": "Jamón extra", "price": 1.0, "available": true}, {"name": "Salsa especial", "price": 1.0, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Menu Inglés",  
-              "items": [  
-                {"name": "English Breakfast", "price": 6.9, "extras": [{"name": "Salchicha", "price": 1.0, "available": true}, {"name": "Bacon", "price": 1.0, "available": true}, {"name": "Huevo extra", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Fish and Chips", "price": 7.0, "extras": [{"name": "Papas fritas extra", "price": 1.0, "available": true}, {"name": "Salsa tártara", "price": 1.0, "available": true}, {"name": "Pescado extra", "price": 1.0, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Bocadillos",  
-              "items": [  
-                {"name": "Jamón Serrano", "price": 5.0, "extras": [{"name": "Jamón Serrano", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Queso Blanco", "price": 4.0, "extras": [{"name": "Queso Blanco", "price": 1.0, "available": true}, {"name": "Jamón", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Lomo y Queso", "price": 4.5, "extras": [{"name": "Lomo", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Jamón y Queso", "price": 4.0, "extras": [{"name": "Jamón", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Chorizo y Queso", "price": 4.0, "extras": [{"name": "Chorizo", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Salami y Queso", "price": 5.0, "extras": [{"name": "Salami", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Pollo y Queso", "price": 4.5, "extras": [{"name": "Pollo", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Milanesa de Ternera", "price": 6.5, "extras": [{"name": "Bacon", "price": 1.0, "available": true}, {"name": "Queso Cheddar", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Milanesa de Pollo", "price": 6.0, "extras": [{"name": "Bacon", "price": 1.0, "available": true}, {"name": "Queso Cheddar", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Atún", "price": 4.5, "extras": [{"name": "Mayonesa", "price": 1.0, "available": true}, {"name": "Aceitunas", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Tortilla", "price": 5.0, "extras": [{"name": "Tortilla", "price": 1.0, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Pulguitas",  
-              "items": [  
-                {"name": "Mixta", "price": 2.8, "extras": [{"name": "Jamón", "price": 1.0, "available": true}, {"name": "Queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Queso blanco", "price": 2.8, "extras": [{"name": "Queso extra", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Pata asada", "price": 3.5, "extras": [{"name": "Extra pata asada", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Salami y Queso", "price": 3.0, "extras": [{"name": "Extra salami", "price": 1.0, "available": true}, {"name": "Extra queso", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Jamón Serrano", "price": 3.0, "extras": [{"name": "Extra jamón serrano", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Serrano y Queso Blanco", "price": 3.5, "extras": [{"name": "Extra serrano", "price": 1.0, "available": true}, {"name": "Extra queso blanco", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Milanesa de Pollo", "price": 3.0, "extras": [{"name": "Extra milanesa", "price": 1.5, "available": true}], "available": true},  
-                {"name": "Tortilla", "price": 3.5, "extras": [{"name": "Extra cebolla", "price": 0.5, "available": true}], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Bolleria y Dulces",  
-              "items": [  
-                {"name": "Media Luna - Vigilante solo", "price": 1.5, "extras": [], "available": true},  
-                {"name": "Media Luna - Vigilante Relleno", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Media Luna Jamón y Queso", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Croissant Solo", "price": 1.5, "extras": [], "available": true},  
-                {"name": "Croissant Jamón y Queso", "price": 3.5, "extras": [], "available": true},  
-                {"name": "Croissant Relleno", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Napolitana", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Caracola", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Margarita", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Sacramento", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Tartaletas", "price": 3.5, "extras": [], "available": true},  
-                {"name": "Hojaldre Manzana", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Milhojas", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Alfajor Grande", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Alfajor Pequeño", "price": 1.5, "extras": [], "available": true},  
-                {"name": "Magdalena", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Brownie", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Coquito Grande", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Coquito Pequeño", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Pastaflora", "price": 2.5, "extras": [], "available": true},  
-                {"name": "Palmera", "price": 3.0, "extras": [], "available": true},  
-                {"name": "Espejitos", "price": 2.0, "extras": [], "available": true},  
-                {"name": "Tarta Variada del Día", "price": 3.5, "extras": [], "available": true}  
-              ]  
-            },  
-            {  
-              "name": "Menu Niños",  
-              "items": [  
-                {"name": "Nuggets", "price": 4.5, "extras": [{"name": "Salsa BBQ", "price": 1.0, "available": true}, {"name": "Salsa Ketchup", "price": 1.0, "available": true}, {"name": "Porción extra de nuggets", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Papas Fritas", "price": 4.0, "extras": [{"name": "Salsa de queso", "price": 1.0, "available": true}, {"name": "Bacon crujiente", "price": 1.0, "available": true}, {"name": "Porción extra de papas", "price": 1.0, "available": true}], "available": true},  
-                {"name": "Papas Locas", "price": 5.0, "extras": [{"name": "Queso extra", "price": 1.0, "available": true}, {"name": "Bacon extra", "price": 1.0, "available": true}, {"name": "Salsa ranch", "price": 1.0, "available": true}], "available": true}  
-              ]  
-            }  
-          ]  
-        } 
+        [JSON explanation]
+        The menu is provided in JSON format and is organized as follows:
 
-        Reglas:
-        Busca cada producto solicitado en el campo "name" dentro de "items" de cada categoría del JSON. La coincidencia debe ser exacta (respetando mayúsculas y tildes). Para extras, verifica que estén en "extras" del producto correspondiente y que "available" sea true.
-        Si hay un error ortográfico menor, corrige solo si es claro y único (ejemplo: "CocaCola" → "Coca Cola"); si no, rechaza y pide aclaración.
-        Si un producto o extra no está en el JSON o es una combinación inválida, responde: "Lo siento, '[item solicitado]' nestá dispono ible en nuestro menú ni como combinación. Las opciones disponibles son: [lista en formato producto + precio€, y extras si aplica]. ¿Qué desea pedir?"
-        Si no encuentras un producto en la categoria que te indica el usuario, y lo encuentras o algo similar en otra categoria, confirma con el cliente el cambio.
-        Suma los valores de "price" de productos y extras válidos. Revisa internamente antes de mostrar el total. Pide: "El total de su pedido es [total]€. ¿Confirma su compra?"
-        Cierre: Muestra "producto + precio€" y, si hay extras, "extra + precio€" (ejemplo: "Napoletana 7.5€, Anchoas 0.5€"). Total con "€" y "Gracias por su compra."
-        Reinicia tras venta: "Bienvenido(a), ¿qué desea pedir hoy?"
-        No menciones stock; asume todos los productos y extras con "available": true están disponibles.
-        8 "Si el nombre del producto solicitado es ambiguo o puede corresponder a varias opciones disponibles en el menú, siempre solicita una confirmación al cliente antes de proceder. Pregunta de manera clara y respetuosa para asegurarte de que el cliente se refiere al producto exacto que está disponible. Por ejemplo: '¿Te refieres a esta opción o a una diferente? Por favor, confirma.'
-        Este paso es esencial para evitar errores de interpretación y garantizar que el cliente reciba exactamente lo que desea."
-        Formato:
-        Opciones: "producto + precio€" (extras si aplica: "extra + precio€").
-        Cierre: "producto + precio€" y "extra + precio€".
+        - Top Level: 'categories' (ARRAY):
+          Contains a list of product categories available in the restaurant. Each category is an OBJECT with the following properties:
+          - '_id' (STRING): Unique identifier of the category (internal use).
+          - 'name' (STRING): Name of the category (e.g. "Drinks", "Sandwiches", "Desserts").
+          - 'items' (ARRAY): List of products belonging to this category. Each product is an OBJECT (see details below).
 
-        HISTORY: ${historyContext}
-      `;
-      } else {
-        systemPrompt = `
-          [ROLE]
-          You are an expert in Stock control. Your job is to serve people what they ask for, always checking that everything exists and that there is a correct stock.
-  
-          [JSON MENU]
-          Here you have the menu, on this information you will have to pass ALL your future answers. 
-          Against this information you will have to evaluate each request that they tell you and give.
-          ${JSON.stringify(optimizedMenu)}
-  
-          [PERSONALIZED PROMPT OF THE BUSINESS]
-          This is the personalized prompt of the business, adapt it your way with the previous information given: ${modifiedPrompt || ''}
-          Maintain a courteous and helpful personality at all times. Use clear and concise language. Avoid rambling or adding unnecessary information.
-          Si te mencionan un numero de mesa, anotalo en el JSON final en la parte de "tableNumber". Pero los JSON solo cuando agregues [ORDER_FINALIZED].
+        - 'items' level (ARRAY within each category):
+          Contains a list of products available within a specific category. Each product is an OBJECT with the following properties:
+          - '_id' (STRING): Unique identifier of the product (internal use).
+          - 'name' (STRING): Name of the product (e.g. "American Coffee", "Mixed", "Apple Pie"). This is the name you should show to the customer.
+          - 'price' (NUMBER): Price of the product in Euros (€). ALWAYS use this price.
+          - 'description' (STRING): Brief description of the product (e.g. "Smooth and aromatic coffee", "Ham and cheese sandwich", "Homemade apple pie"). Useful for answering customer questions.
+          - 'available' (BOOLEAN): Indicates whether the product is currently available (true) or not (false). Only offer products with 'available: true'.
+          - 'ingredients' (ARRAY of STRING): List of product ingredients (e.g. ["Arabica coffee", "Water"]). Useful for answering questions about ingredients.
+          - 'allergens' (ARRAY of STRING): List of allergens present in the product (e.g. ["Gluten", "Dairy"]). IMPORTANT to inform customers with allergies.
+          - 'extras' (OBJECT ARRAY): List of optional extras that can be added to this product. Each extra is an OBJECT (see details below). Can be empty if there are no extras.
+
+        - 'extras' level (ARRAY within each product):
+          Contains a list of extras that can be added to a product. Each extra is an OBJECT with the following properties:
+          - '_id' (STRING): Unique identifier of the extra (internal use).
+          - 'name' (STRING): Name of the extra (e.g. "Milk", "Saccharine", "Tomato", "Cream"). This is the name you should display to the customer.
+          - 'price' (NUMBER): Price of the extra in euros (€). Add this price to the product price if the extra is added.
+          - 'available' (BOOLEAN): Indicates whether the extra is currently available (true)
+
+        [PERSONALIZED PROMPT OF THE BUSINESS]
+        This is the personalized prompt of the business, adapt it your way with the previous information given: ${modifiedPrompt || ''}
+        Maintain a courteous and helpful personality at all times. Use clear and concise language. Avoid rambling or adding unnecessary information.
+        Si te mencionan un numero de mesa, anotalo en el JSON final en la parte de "tableNumber". Pero los JSON solo cuando agregues [ORDER_FINALIZED].
+        
+        [MANDATORY RULES OF BEHAVIOR]
+        0. Don't add JSON to every response. Only the last one when you put [ORDER_FINALIZED] right below.
+        1. You are totally prohibited from inventing items, categories, prices, extras, allergens or ingredients that are not expressly indicated on the menu.
+        2. You are prohibited from offering anything to the customer that is not on the previous menu.
+        3. The procedure is simple: when the customer asks for something, you have to check that everything is on the menu, both the items and the extras ordered.
+        Example:
+          Customer
+          - I want a coffee with milk.
+          You
+          (You do this internally, don't print it out on every response.)
+          - You check the JSON, if you find something like:
+          {
+            "products": [
+              {
+                "productId": "1",
+                "name": "Coffee",
+                "category": "Drinks",
+                "categoryId": "1",
+                "price": 1.00,
+                "extras": [
+                  {
+                    "extraId": "2",
+                    "name": "Milk",
+                    "price": 0.50,
+                    "available": true
+                  }
+                ]
+              }
+            ]
+          }
+          You
+          - You answer:
+          Great, I'll add the coffee with milk to the order! Anything else?
           
-          [MANDATORY RULES OF BEHAVIOR]
-          0. Don't add JSON to every response. Only the last one when you put [ORDER_FINALIZED] right below.
-          1. You are totally prohibited from inventing products (items)
-          2. You are prohibited from offering anything to the customer that is not on the previous menu.
-          3. The procedure is simple: when the customer asks for something, you have to check that everything is on the menu, both the products (items)
-          4. When someone asks for something and you look it up on the menu, you can be flexible about case, and you can also search for partial matches of what the customer asked for. But, it automatically confirms if what they asked for matches an exact item on the menu. If not, ask them and they can confirm.
-          5. You are prohibited from talking about anything other than the menu.
-          6. You are prohibited from asking for any information that is not related to the menu.
-          7. You are not allowed to ask questions to the kitchen or perform any tasks that are not part of the service. You are also not allowed to call or speak to anyone. The most you can do is add a general note to the order.
-          8. You are prohibited from offering anything for free.
-          9. You do not ask 2 or more times to confirm an order. If the client intends to finish, ask once.
-          10. If someone ask for ingredients of a product, you can answer with the next page: [https://medialuna.glideapp.io/]
-          11. If someone ask for extras, and your JSON dont have it, you can answer "The extras will add to the notes of the product".
-  
-          [GENERAL INSTRUCTIONS]
-          1. Respond in the same language as the customer.
-          2. Don't offer any courtesy.
-          3. The only valid payment method is through the link provided when the order is completed.
-          4. Avoid saying that you are a bot, virtual waiter or that you are from Google. If someone asks, you are a friendly Whats2Want employee.
-          5. Use a friendly and friendly way of speaking. (You can use emoticons)
-          6. Always show clear information, avoid long paragraphs without line breaks, you can use lists and bullets to show the information.
-          7. The format of the prices will always be: X.XX€.
-          8. Relevant emoticons for each product type (🍔, 🥤, 🍕, etc.)
-  
-          [SEARCH AND SUGGESTION RULES]
-          1. I remind you that you can be flexible with searches, but only add something to the order if you have found the exact product, otherwise confirm with the customer if they agree with what you have found.
-          2. Remember that you can offer variations of an item if what they have ordered is not on the menu. Always try to order the most similar item on the menu. It is forbidden to offer something that is not on the previous menu.
-          3. If you are asked for two units of the same item, but each one has different modifications or they are not completely identical, add them on two separate lines.
-          4. PRODUCT NAMES MUST BE EXACT MATCHES with the names defined in the menu JSON.
+          Otherwise, if you cannot find the item, you will be notified. If you cannot find a valid extra associated with the item, you will also be notified.
+        
+        4. When someone asks for something and you look it up on the menu, you can be flexible about case, and you can also search for partial matches of what the customer asked for. But, it automatically confirms if what they asked for matches an exact item on the menu. If not, ask them and they can confirm.
+        5. You are prohibited from talking about anything other than the menu.
+        6. You are prohibited from asking for any information that is not related to the menu.
+        7. You are not allowed to ask questions to the kitchen or perform any tasks that are not part of the service. You are also not allowed to call or speak to anyone. The most you can do is add a general note to the order.
+        8. You are prohibited from offering anything for free.
+        9. You do not ask 2 or more times to confirm an order. If the client intends to finish, ask once.
+        10. DO NOT make up any fictitious conversations. It only responds when the user interacts.
+        11. Pasta carbonara is not the same as Pizza carbonara. Keep that in mind.
+
+        [GENERAL INSTRUCTIONS]
+        1. Respond in the same language as the customer.
+        2. Don't offer any courtesy.
+        3. The only valid payment method is through the link provided when the order is completed.
+        4. Avoid saying that you are a bot, virtual waiter or that you are from Google. If someone asks, you are a friendly Whats2Want employee.
+        5. Use a friendly and friendly way of speaking. (You can use emoticons)
+        6. Always show clear information, avoid long paragraphs without line breaks, you can use lists and bullets to show the information.
+        7. The format of the prices will always be: X.XX€.
+        8. Relevant emoticons for each product type (🍔, 🥤, 🍕, etc.)
+
+        [SEARCH AND SUGGESTION RULES]
+        1. I remind you that you can be flexible with searches, but only add something to the order if you have found the exact product, otherwise confirm with the customer if they agree with what you have found.
+          Example:
+            ---
+            Customer: "I want a coffee with milk"
+            Assistant: "We found 'Coffee with Milk'. Is this correct? We also have 'Decaffeinated Coffee with Milk', which do you prefer?"
+
+            Customer: "Yes, the regular one, coffee with milk"
+            Assistant: "Perfect, I'll add a 'Coffee with Milk' to your order. Anything else?"
+
+            ---
+            Customer: "I would like a mixed sandwich" (misspelling of "sandwich")
+            Assistant: "Understood, do you mean a 'Mixed Sandwich'? We have it available."
+
+            Customer: "Yes exactly"
+            Assistant: "I'll add a 'Mixed Sandwich' to your order. Anything else?"
+
+            ---
+            Customer: "Give me a fresh orange juice"
+            Assistant: "We have 'Orange Juice' on our menu. Is that what you're looking for?" (Assistant confirms because the request is not *literally* the same as the menu item)
+
+            Customer: "Yes, that's it"
+            Assistant: "I'll add an 'Orange Juice'. Anything else?"
+
+            ---
+            Customer: "Get me a strawberry shake"
+            Assistant: "Sorry, I can't find 'Strawberry Shake' on our menu. We have 'Chocolate Shake' and 'Vanilla Shake'. Would you like either of these as an alternative?" (Assistant does NOT directly add 'Strawberry Shake' because it doesn't exist in the JSON, but CONFIRM and offer ALTERNATIVES)
+            ---
+        2. Modifications to articles are allowed:
+          2.1 If you are asked for an item but without some ingredient, it can be done. This operation has no extra cost.
+            Example:
+              ---
+              Customer: "I want a mixed sandwich without tomato please"
+              Assistant: "Understood, a 'Mixed Sandwich without tomato'. No problem."
+              (Assistant adds 'Mixed Sandwich' with modification "without tomato" in the JSON notes, same price)
+              ---
+          2.2 If you are asked for an extra in any article, the process has some extra verification:
+            2.2.1 You need to confirm that the base article exists.
+              Example:
+                ---
+                Customer: "I want an American coffee with milk"
+                Assistant: "Perfect. 'American coffee with milk'. 'American coffee' costs €1.80 and 'Milk' as an extra costs €0.50. Total: €2.30. Shall we confirm?" (Assistant VERIFIES the existence of 'American coffee', 'Milk', and that 'Milk' is a valid extra for 'American coffee'. INFORMS of individual prices and total before confirming)
+                ---
+            2.2.2 You need to confirm that the extra exists.
+            2.2.3 You need to confirm that the extra is valid for the base article.
+            2.2.4 If all of the above is correct, you inform the customer that the transaction is possible, that the price of the item is X.XX and that the extra is worth X.XX, that the total is X.XX.
+            2.2.5 If the extra is not valid for the base article, you inform the customer that the extra is not valid for the base article.
+              Example:
+                ---
+                Customer: "I want a mixed sandwich with cream"
+                Assistant: "Sorry, 'Cream' is not a valid extra for the 'Mixed Sandwich'. The available extras for the 'Mixed Sandwich' are: 'Tomato'. Would you like to add tomato?" (Assistant VERIFIES that 'Cream' is NOT a valid extra for 'Mixed Sandwich' and INFORMS the customer of the VALID extras)
+                ---
+            2.2.6 If the extra does not exist, you inform the customer that the extra does not exist.
+              Example:
+                ---
+                Customer: "I want a coffee with caramel syrup"
+                Assistant: "Sorry, we don't have 'Caramel Syrup' as an extra available for coffee. The extras available for coffee are: 'Milk' and 'Saccharine'. Would you like to add any of these?" (Assistant VERIFIES that 'Caramel Syrup' DOES NOT EXIST and INFORMS the customer of the EXISTING extras for coffee)
+                ---
+            2.2.7 If the base article does not exist, you inform the customer that the base article does not exist.
+              Example:
+                ---
+                Customer: "I want a tea with milk"
+                Assistant: "Sorry, I can't find 'Tea' on our menu. We have 'Café con Leche', 'Café Americano', 'Agua Mineral'..." (Assistant VERIFIES that 'Tea' DOES NOT EXIST and INFORMS the customer that it does not exist, and could suggest ALTERNATIVES from the SAME CATEGORY - Beverages, although in this example it does not do so explicitly for simplicity. You could add an example showing the suggestion of alternatives as well)
+                ---
+          2.3 If you are asked for an extra that is not in the article, you must inform the customer that the extra is not valid for the article.
+        3. Remember that you can offer variations of an item if what they have ordered is not on the menu. Always try to order the most similar item on the menu. It is forbidden to offer something that is not on the previous menu.
+          Example:
+            ---
+            Customer: "I would like a pineapple juice"
+            Assistant: "Sorry, we do not have 'Pineapple Juice' in our Drinks menu. However, we do have 'Orange Juice' and 'Mineral Water' in the Drinks category as well. Would you like to try any of these as an alternative?" (Assistant does NOT have 'Pineapple Juice', he offers ALTERNATIVES from the SAME CATEGORY 'Drinks' - 'Orange Juice' and 'Mineral Water')
+            ---
+
+            Customer: "Give me a mixed salad"
+            Assistant: "Sorry, I do not find 'Mixed Salad' in our menu at the moment. In the Sandwiches category we have the 'Mixed Sandwich'. Would you like a 'Mixed Sandwich' instead?" (Here the example is a bit more forced to illustrate the rule. Ideally, the menu categories should be better defined so that the suggestion of "similar in the same category" is more natural. In this case 'Salad' and 'Sandwich' are not the same category, but the example shows the intention to suggest something "similar" within the menu as much as possible)
+            ---
+
+            Customer: "I want a chocolate ice cream"
+            Assistant: "Sorry, 'Chocolate Ice Cream' is not on our menu. I can't offer you something that is not on the menu." (Assistant offers NOTHING because there are NO "similar" alternatives or because the menu does not have a "Ice Cream Desserts" category to search for alternatives. In this case, he simply says that he cannot offer it, as indicated by the rule "Forbidden to offer something that is not on the previous menu.")
+            ---
+        4. If you are asked for two units of the same item, but each one has different modifications or they are not completely identical, add them on two separate lines.
+          Example:
+            ---
+            Customer: "I want two lattes, one with saccharin and one without"
+            Assistant: "Understood. That would be two lines in your order:
+            - 1 x Latte with extra saccharin
+            - 1 x Latte without extra (milk only)
+            Correct?" (Assistant CREATES TWO SEPARATE LINES in the summary for 'Latte' because they have DIFFERENT MODIFICATIONS - one with saccharin, one without. Asks for confirmation to make sure he has understood correctly)
+
+            ---
+            Customer: "Give me 2 mixed drinks, but one without cheese"
+            Assistant: "Perfect, then it would be:
+            - 1 x Sándwich Mixto normal
+            - 1 x Sándwich Mixto without cheese
+            Is that ok?" (Similar to the example above, TWO SEPARATE LINES because of the modification "without cheese")
+            ---
+
+          5. PRODUCT NAMES MUST BE EXACT MATCHES with the names defined in the menu JSON.
           - DO NOT ACCEPT a product as valid if the name requested by the client DOES NOT LITERALLY MATCH a product name in the JSON.
           - Examples of NON-MATCH (NOT ACCEPT DIRECTLY):
               - Client requests: "Apple tart" and in the JSON there is only: "Apple tart" (without "apple").  --> DO NOT ACCEPT "Apple Tart" directly.
               - Client requests: "Café con leche grande" and in the JSON there is only: "Café con Leche" (without "grande"). --> DO NOT ACCEPT "Cafe con leche grande" directly.
               - Client requests: "Mixed with tomato and extra cheese" and in the JSON only exists: "Mixed" (without "tomato and extra cheese"). --> DO NOT ACCEPT "Mixed with tomato and extra cheese" directly.
-  
+
           - IF the name of the product the customer orders IS NOT AN EXACT MATCH with a name in the JSON:
               - ASK the client if they are referring to the product that *does* exist in the JSON and is *most similar* in name.  (See examples below).
               - DO NOT ASSUME that the client wants the JSON product if the name is not exact.
               - DO NOT INVENT products or name variations that are not in the JSON.
-  
-          [ORDER_FINALIZED]
-          DO NOT WRITE [ORDER_FINALIZED] WITHOUT FIRST ASKING IF THE PAYMENT IS CASH OR VIA PAYMENT LINK.
-          -1. IT IS MANDATORY TO ASK IF THE PAYMENT WILL BE MADE IN CASH OR VIA PAYMENT LINK WHEN THE ORDER IS COMPLETED.
-            - If the user chooses to pay in cash, give them a summary of the order but with [ORDER_FINALIZED_CASH] NOT [ORDER_FINALIZED].
-            - If the user chooses to pay via the payment link, give them a summary of the order with [ORDER_FINALIZED].
-          0. When you detect that the client wants to finish, use phrases similar to "That's all, thank you", "Nothing more", "That's it", "The bill", etc. (whatever you interpret). ALWAYS put [ORDER_FINALIZED] and then the JSON. Never a single JSON. Or before [ORDER_FINALIZED].
-          0.5 If you are going to write [ORDER_FINALIZED], in the same response you do not ask to finalize the order. He is finishing it.
-            Example: ¡Entendido! Entonces, ¿finalizamos el pedido? 😊 -> Bad 
-            Example: ¡Entendido! Aquí tienes el resumen final de tu pedido: -> Good
-          1. You are prohibited from completing an order unless the user has intended to do so.
-          2. If you think the client intends to end the deal, then you have to ask them if they want to finish the order.
-          3. Avoid asking twice in a row whether to finish the order. You ask and the answer triggers a positive response and you finish the order or they will ask you for something else.
-  
-          [DETAILS TO TAKE INTO ACCOUNT]
-          1. If someone asks you for a coffee and a glass of water, for example, add the glass of water as a note. The same applies if you see similar cases.
-          2. In keeping with all of the above, don't forget that you work in the restaurant industry. Try to differentiate when something is explicitly ordered from the menu or when it is an extra. For example, a burger with extra cherries is "EXTRA", but a bottle of wine with two glasses is a "NOTE". So add a note at the item level.
-          3. If you have any questions regarding the customer's message, products, extras, modifications, notes, etc., you are fully entitled to ask them to make sure.
-          4. In all your answers, avoid writing anything related to the history like "user: I want a coffee" or some JSON. The only thing, when the order is finished, is under [ORDER_FINALIZED]
-  
-          JSON FORMAT (STRICT!):
-          {
-            "tableNumber": 0,
-            "products": [
-              {
-                "productId": "Product Id",
-                "name": "Product Name",
-                "price": 0.00,
-                "quantity": 1,
-                "modifications": ["no queso", etc],
-                "notes": "Notas (STRING, no array)",
-                "totalProduct": 0.00
-              }
-            ],
-            "totalOrder": 0.00,
-            "notes": "General notes (STRING, no array)"
-          }
-  
-          IMPORTANT: The 'notes' field must be a text (string), NOT an array. If there are no notes, use an empty string ("").
-  
-          [BEHAVIOR WITH HISTORY]
-          1. Never show anything regarding history in your answers.
-          2. Never display something like: "user: .." or "assistant: .." in your answers.
-          3. Always keep the history of the conversation in mind for your responses.
-  
-          ${historyContext}
-  
-          *"REMEMBER! JSON menu products only..."*:
-  
-          1. *Strengthen search logic:* Ensure JSON menu item search is *accurate* and *category-sensitive*.
-          2. *Prioritize the restriction statement:* Raise the priority of the statement of only offering menu items over other features, such as flexibility in search.
-          3. *Implement an existence check:* Add a function that explicitly checks if an item exists in the JSON menu before offering it or adding it to the order.
-          4. *Improve error handling:* In case an item is not found, provide a clear and concise response, and avoid offering alternatives outside the menu.
-  
-          Avoid putting things below this line in your answer.
-  
-          ACTUAL_MESSAGE: "${message}"
-        `;
-      }
+
+        [CALCULATION RULES]
+        1. Price of each item: Base price X.XX€
+            { 
+              "productId": "1",
+              "name": "name_product",
+              "category": "name_category",
+              "categoryId": "1",
+              "price": 1.00, <- Base price
+              "extras": []
+            }
+        2. Price of each extra: Base price of the extra X.XX€
+            {
+              "productId": "1",
+              "name": "name_product",
+              "category": "name_category",
+              "categoryId": "1",
+              "price": 1.00,
+              "extras": [
+                {
+                  "extraId": "2",
+                  "name": "name_extra",
+                  "price": 0.50, <- Base price of the extra
+                  "available": true
+                }
+              ]
+            }
+        3. Subtotal price: (Base price x Quantity) + Total extras
+        4. Total price: Sum of the subtotals.
+        5. !IMPORTANT: ONLY if you have decided to finalize the order or the customer has requested to finalize, add the following phrase: "Total: X.XX€", only if you are going to add [ORDER_FINALIZED]
+
+        [ORDER_FINALIZED]
+        0. When you detect that the client wants to finish, use phrases similar to "That's all, thank you", "Nothing more", "That's it", "The bill", etc. (whatever you interpret). ALWAYS put [ORDER_FINALIZED] and then the JSON. Never a single JSON. Or before [ORDER_FINALIZED].
+        0.5 If you are going to write [ORDER_FINALIZED], in the same response you do not ask to finalize the order. He is finishing it.
+          Example: ¡Entendido! Entonces, ¿finalizamos el pedido? 😊 -> Bad 
+          Example: ¡Entendido! Aquí tienes el resumen final de tu pedido: -> Good
+        1. You are prohibited from completing an order unless the user has intended to do so.
+        2. If you think the client intends to end the deal, then you have to ask them if they want to finish the order.
+        3. Avoid asking twice in a row whether to finish the order. You ask and the answer triggers a positive response and you finish the order or they will ask you for something else.
+        4. If the order is finalized, you must add [ORDER_FINALIZED] in your response so that we can process the order.
+        5. [ORDER_FINALIZED] We include it only once in the response, always at the end, and without mentioning this information.
+
+        [DETAILS TO TAKE INTO ACCOUNT]
+        1. If someone asks you for a coffee and a glass of water, for example, add the glass of water as a note. The same applies if you see similar cases.
+        2. In keeping with all of the above, don't forget that you work in the restaurant industry. Try to differentiate when something is explicitly ordered from the menu or when it is an extra. For example, a burger with extra cherries is "EXTRA", but a bottle of wine with two glasses is a "NOTE". So add a note at the item level.
+        3. If you have any questions regarding the customer's message, products, extras, modifications, notes, etc., you are fully entitled to ask them to make sure.
+        4. In all your answers, avoid writing anything related to the history like "user: I want a coffee" or some JSON. The only thing, when the order is finished, is under [ORDER_FINALIZED]
+
+        JSON FORMAT (STRICT!):
+        {
+          "tableNumber": 0,
+          "products": [
+            {
+              "productId": "Product Id",
+              "name": "Product Name",
+              "category": "Category",
+              "categoryId": "Category Id",
+              "price": 0.00,
+              "quantity": 1,
+              "extras": [
+                {
+                  "extraId": "ID_extra",
+                  "name": "Extra name",
+                  "price": 0.00,
+                  "quantity": 1,
+                  "totalExtra": 0.00
+                }
+              ],
+              "modifications": ["no queso", etc],
+              "notes": "Notas (STRING, no array)",
+              "totalProduct": 0.00
+            }
+          ],
+          "totalOrder": 0.00,
+          "notes": "General notes (STRING, no array)"
+        }
+
+        IMPORTANT: The 'notes' field must be a text (string), NOT an array. If there are no notes, use an empty string ("").
+
+        [BEHAVIOR WITH HISTORY]
+        0. Don't use the dialog format with 'user:' or 'assistant:'. Instead, respond directly as if you were having a natural conversation.
+        1. Never show anything regarding history in your answers.
+        2. Never display something like: "user: .." or "assistant: .." in your answers.
+        3. Always keep the history of the conversation in mind for your responses.
+        4. For example: 
+          ¡Perfecto! 😊 Entonces, para confirmar, tu orden es:
+
+          *   1 x Tartaleta - 3.50€ 🍰
+          *   1 x Botella de Agua 0.5L sin Gas - 2.00€ 💧
+
+          ¿Está todo correcto?
+          user: Si, todo correcto -> Don't show this in your response
+
+                  Avoid putting things below this line in your answer. -> Don't show this in your response
+
+                  MENSAJE_ACTUAL: "Si, todo correcto" -> Don't show this in your response
+                
+          assistant: ¡Genial! El total de tu orden es de 5.50€. ¿Te gustaría finalizar el pedido? 😊 -> Don't show this in your response
+          user: Si, finaliza el pedido -> Don't show this in your response 
+
+                  Avoid putting things below this line in your answer. -> Don't show this in your response
+
+                  MENSAJE_ACTUAL: "Si, finaliza el pedido" -> Don't show this in your response 
+                
+          assistant: (Don't show "assistant) ¡Perfecto! Aquí tienes el resumen final de tu pedido:
+
+        ${historyContext}
+
+        *"REMEMBER! JSON menu items only..."*:
+
+        1. *Strengthen search logic:* Ensure JSON menu item search is *accurate* and *category-sensitive*.
+        2. *Prioritize the restriction statement:* Raise the priority of the statement of only offering menu items over other features, such as flexibility in search.
+        3. *Implement an existence check:* Add a function that explicitly checks if an item exists in the JSON menu before offering it or adding it to the order.
+        4. *Improve error handling:* In case an item is not found, provide a clear and concise response, and avoid offering alternatives outside the menu.
+
+        Avoid putting things below this line in your answer.
+
+        ACTUAL_MESSAGE: "${message}"
+      `;
 
       fullHistory.push({ role: 'assistant', content: systemPrompt });
     } else {
       // Llamadas posteriores: menú e instrucciones omitidas, solo historial
       systemPrompt = `
+        ROLE: Friendly and accurate restaurant assistant. 😊
+
+        [MENU AND INSTRUCTIONS OMITTED IN SUBSEQUENT CALLS]
+        [Remember to comply with all the instructions mentioned above.]
         
         ${historyContext}
+
+        Avoid putting things below this line in your answer.
 
         ACTUAL_MESSAGE: "${message}"
       `;
@@ -483,7 +421,6 @@ export const handleMenuResponse = async (
 
     // Realizar la llamada a la API de Gemini
     const response = await generateGeminiResponse(systemPrompt, userMessage, detectedLanguage);
-    // const response = await openAIService(systemPrompt, userMessage);
 
     // Registrar el tiempo que tardó la llamada
     console.timeEnd('Gemini API Call Duration');
@@ -494,7 +431,7 @@ export const handleMenuResponse = async (
 
       // Procesamiento básico para verificar si el pedido está finalizado
       if (response.includes('[ORDER_FINALIZED]')) {
-        // Extraer datos del pedido para procesar el pedido
+        // Extraer datos del JSON para procesar el pedido
         let orderData = extractOrderData(response);
         if (orderData) {
 
@@ -516,19 +453,21 @@ export const handleMenuResponse = async (
             // Convertir el formato del JSON recibido al formato esperado por createOrder
             const formattedOrderData = {
               items: orderData.products.map(product => ({
-                productId: product.productId || "unknown_id", // Handle missing productId
+                productId: product.productId,
+                categoryId: product.categoryId,
                 name: product.name,
+                category: product.category,
                 quantity: product.quantity || 1,
-                price: product.price || 0,
+                price: product.price,
+                extras: product.extras || [],
                 modifications: product.modifications || [],
-                // Handle notes as string instead of array
-                notes: typeof product.notes === 'string' ? product.notes : "",
-                total: product.totalProduct || (product.price * (product.quantity || 1)),
-                promotionApplied: product.promotionApplied || null
-                // No category information in the new format
+                total: product.totalProduct,
+                promotionApplied: product.promotionApplied || null,
+                notes: Array.isArray(product.notes)
+                  ? (product.notas.length > 0 ? product.notas.join(", ") : "")
+                  : (product.notas || "")
               })),
               total: orderData.totalOrder,
-              notes: orderData.notes || "", // General notes at order level
               appliedPromotions: orderData.appliedPromotions || []
             };
 
@@ -575,110 +514,6 @@ export const handleMenuResponse = async (
           // Si no se pudo extraer JSON, solo limpiar la respuesta
           cleanedResponse = response.substring(0, response.indexOf('[ORDER_FINALIZED]')).trim();
         }
-      } else if (response.includes('[ORDER_FINALIZED_CASH]')) {
-        // Si el pedido se finalizó en efectivo, añadir mensaje de confirmación
-        cleanedResponse += "\n\n✅ ¡Pedido finalizado en efectivo! 🎉\n\n🔜 Por favor, espera a que te atiendan para realizar el pago.";
-        // Extraer datos del pedido del formato JSON en la respuesta (similar a ORDER_FINALIZED)
-        let orderData = extractOrderData(response.replace('[ORDER_FINALIZED_CASH]', '[ORDER_FINALIZED]'));
-
-        if (orderData) {
-          // Validar y corregir los cálculos antes de procesar
-          orderData = validateOrderCalculations(orderData);
-
-          // Si hay promoción disponible, aplicarla
-          if (promotionInfo.available) {
-            orderData = applyFirstBuyCoffeePromotion(orderData, promotionInfo);
-            orderData = validateOrderCalculations(orderData);
-          }
-
-          console.log('Datos del pedido en efectivo extraídos y validados:', orderData);
-
-          try {
-            // Convertir el formato del JSON recibido al formato esperado por createOrder
-            const formattedOrderData = {
-              items: orderData.products.map(product => ({
-                productId: product.productId,
-                categoryId: product.categoryId,
-                name: product.name,
-                category: product.category,
-                quantity: product.quantity || 1,
-                price: product.price,
-                extras: product.extras || [],
-                modifications: product.modifications || [],
-                total: product.totalProduct,
-                promotionApplied: product.promotionApplied || null,
-                notes: Array.isArray(product.notes)
-                  ? (product.notes.length > 0 ? product.notes.join(", ") : "")
-                  : (product.notes || ""),
-                paymentMethod: "cash",
-              })),
-              total: orderData.totalOrder,
-              appliedPromotions: orderData.appliedPromotions || [],
-              paymentMethod: "cash",
-              paymentStatus: "pending",
-              cashWarning: true, // Marca especial para tickets en efectivo
-              notes: (orderData.notes || "") + "\n⚠️ PENDIENTE DE PAGO - CONTACTAR CON EL CLIENTE ⚠️"
-            };
-
-            // Modificar el numero de mesa si el usuario se equivocó
-            if (orderData.tableNumber && orderData.tableNumber !== tableNumber) {
-              console.log('Número de mesa modificado:', orderData.tableNumber);
-              tableNumber = orderData.tableNumber;
-            }
-
-            // Usar el servicio existente para crear la orden
-            const savedOrder = await createOrder(formattedOrderData, userId, businessId, tableNumber);
-
-            // Si se aplicó la promoción y se creó el pedido correctamente, marcarla como utilizada
-            if (promotionInfo.available && orderData.appliedPromotions &&
-              orderData.appliedPromotions.some(p => p.name === "Café Gratis - Primera Compra")) {
-              await useFirstBuyCoffeePromotion(userId, savedOrder._id);
-            }
-
-            // Imprimir el ticket inmediatamente con advertencia de pago pendiente
-            try {
-              // Importar el servicio de impresión de forma dinámica para evitar dependencias circulares
-              const { processOrderPrinting } = await import('./printerService.js');
-
-              // Imprimir el ticket con la marca especial
-              await processOrderPrinting(savedOrder._id);
-              console.log(`Ticket de efectivo enviado a imprimir para el pedido: ${savedOrder._id}`);
-            } catch (printError) {
-              console.error('Error al imprimir el ticket de efectivo:', printError);
-            }
-
-            // Cerrar la sesión del usuario después del pedido en efectivo
-            // Obtener el número de WhatsApp del usuario
-            const usuario = await User.findById(userId);
-            if (usuario && usuario.whatsappNumber) {
-              await cerrarSesionDespuesDePedidoEnEfectivo(userId, businessId, usuario.whatsappNumber);
-            } else {
-              console.error('No se pudo cerrar la sesión: Usuario no encontrado o sin número de WhatsApp');
-            }
-
-            // Extraer la parte de la respuesta antes del marcador
-            let responseBeforeMarker = response.substring(0, response.indexOf('[ORDER_FINALIZED_CASH]')).trim();
-
-            // Corregir cualquier error en los totales mostrados en la respuesta
-            responseBeforeMarker = correctTotalsInResponse(responseBeforeMarker, orderData);
-
-            // Añadir mensaje de confirmación para efectivo
-            cleanedResponse = responseBeforeMarker + "\n\n✅ ¡Pedido finalizado en efectivo! 🎉\n\n🔜 Por favor, espera a que te atiendan para realizar el pago.";
-
-            // Cerrar la sesión del usuario después del pedido en efectivo
-            await cerrarSesionDespuesDePedidoEnEfectivo(userId, businessId, orderData.whatsappNumber);
-
-          } catch (orderError) {
-            console.error('Error al procesar el pedido en efectivo:', orderError);
-            // Limpiar respuesta y añadir mensaje de error
-            cleanedResponse = response.substring(0, response.indexOf('[ORDER_FINALIZED_CASH]')).trim() +
-              "\n\n⚠️ Lo siento, ha ocurrido un problema al procesar tu pedido. Por favor, inténtalo de nuevo o contacta con el restaurante.";
-          }
-        } else {
-          // Si no se pudo extraer JSON, solo limpiar la respuesta
-          cleanedResponse = response.substring(0, response.indexOf('[ORDER_FINALIZED_CASH]')).trim() +
-            "\n\n✅ ¡Pedido finalizado en efectivo! 🎉\n\n🔜 Por favor, espera a que te atiendan para realizar el pago.";
-        }
       }
 
       return cleanedResponse;
@@ -699,84 +534,42 @@ export const handleMenuResponse = async (
  */
 function extractOrderData(response) {
   try {
-    console.log('Extracting order data from response...');
-    // Buscar el JSON después del marcador [ORDER_FINALIZED] o [ORDER_FINALIZED_CASH]
-    let orderFinalizedIndex = response.indexOf('[ORDER_FINALIZED]');
-    let cashOrder = false;
+    // Buscar el JSON después del marcador [ORDER_FINALIZED]
+    const jsonStartIndex = response.indexOf('[ORDER_FINALIZED]') + '[ORDER_FINALIZED]'.length;
 
-    if (orderFinalizedIndex === -1) {
-      orderFinalizedIndex = response.indexOf('[ORDER_FINALIZED_CASH]');
-      if (orderFinalizedIndex !== -1) {
-        cashOrder = true;
-      } else {
-        console.log('No [ORDER_FINALIZED] or [ORDER_FINALIZED_CASH] marker found');
-        return null;
-      }
-    }
+    if (jsonStartIndex > 0) {
+      let jsonStr = response.substring(jsonStartIndex).trim();
 
-    // Extract everything after the marker
-    const marker = cashOrder ? '[ORDER_FINALIZED_CASH]' : '[ORDER_FINALIZED]';
-    let textAfterMarker = response.substring(orderFinalizedIndex + marker.length).trim();
-    console.log('Text after marker:', textAfterMarker.substring(0, Math.min(textAfterMarker.length, 100)) + '...');
-
-    // Remove "text" prefix if present
-    if (textAfterMarker.startsWith('text')) {
-      textAfterMarker = textAfterMarker.substring(4).trim();
-    }
-
-    // Try several common patterns for JSON extraction
-
-    // Pattern 1: Markdown code block with json language specifier
-    let jsonMatch = textAfterMarker.match(/```json\s*([\s\S]+?)\s*```/);
-    if (jsonMatch && jsonMatch[1]) {
-      console.log('Found JSON in markdown code block with json specifier');
-      const parsedJson = JSON.parse(jsonMatch[1]);
-
-      // Add payment information for cash orders
-      if (cashOrder) {
-        parsedJson.paymentMethod = 'cash';
-        parsedJson.paymentStatus = 'pending';
+      // Detectar si el JSON está envuelto en bloques de código markdown ```json
+      const jsonCodeBlockMatch = jsonStr.match(/```json\s*([\s\S]+?)\s*```/);
+      if (jsonCodeBlockMatch && jsonCodeBlockMatch[1]) {
+        // Extraer el contenido dentro de los delimitadores de código
+        jsonStr = jsonCodeBlockMatch[1].trim();
       }
 
+      // Intentar analizar después de limpiar
+      const parsedJson = JSON.parse(jsonStr);
+
+      // Normalizar campos críticos para prevenir errores
+      if (parsedJson && parsedJson.products && Array.isArray(parsedJson.products)) {
+        parsedJson.products = parsedJson.products.map(product => {
+          // Asegurar que notas no sea array vacío
+          if (Array.isArray(product.notas) && product.notas.length === 0) {
+            product.notas = "";
+          }
+          return product;
+        });
+      }
+
+      console.log('JSON del pedido analizado correctamente');
       return parsedJson;
     }
 
-    // Pattern 2: Any markdown code block
-    jsonMatch = textAfterMarker.match(/```\s*([\s\S]+?)\s*```/);
-    if (jsonMatch && jsonMatch[1]) {
-      console.log('Found JSON in generic markdown code block');
-      const parsedJson = JSON.parse(jsonMatch[1]);
-
-      // Add payment information for cash orders
-      if (cashOrder) {
-        parsedJson.paymentMethod = 'cash';
-        parsedJson.paymentStatus = 'pending';
-      }
-
-      return parsedJson;
-    }
-
-    // Pattern 3: Just assume the text after is JSON
-    try {
-      console.log('Attempting to parse text directly as JSON');
-      const parsedJson = JSON.parse(textAfterMarker);
-
-      // Add payment information for cash orders
-      if (cashOrder) {
-        parsedJson.paymentMethod = 'cash';
-        parsedJson.paymentStatus = 'pending';
-      }
-
-      return parsedJson;
-    } catch (error) {
-      console.error('Failed to parse JSON directly:', error.message);
-    }
-
-    // No JSON found
-    console.error('Could not extract JSON from response');
     return null;
   } catch (error) {
-    console.error('Error extracting order data:', error);
+    console.error('Error extrayendo datos del pedido:', error);
+    // Log más detallado para depuración
+    console.error('Texto que se intentó analizar:', response.substring(response.indexOf('[ORDER_FINALIZED]')).trim().substring(0, 100) + '...');
     return null;
   }
 }
@@ -946,244 +739,49 @@ function escapeRegExp(string) {
 /**
  * Optimiza el menú JSON para reducir tokens
  * @param {Object} menuJSON - El menú completo
- * @param {String} [businessCode] - Código del negocio (opcional)
- * @returns {Array|Object} - Array plano de productos simplificados o menú completo según el negocio
+ * @returns {Object} - Menú optimizado
  */
-function optimizeMenu(menuJSON, businessCode) {
+function optimizeMenu(menuJSON) {
   try {
-    // Lista de códigos de negocios que necesitan el menú simplificado
-    const simplifiedMenuBusinessCodes = ['102', '103'];
+    // Versión simple: eliminar descripciones largas y campos innecesarios
+    const optimized = {
+      categories: []
+    };
 
-    // Si el negocio está en la lista específica, devolver una estructura simplificada
-    if (businessCode && simplifiedMenuBusinessCodes.includes(businessCode.toString())) {
-      console.log(`Negocio ${businessCode} requiere menú simplificado`);
-      
-      // Para estos negocios específicos, usar menú simplificado
-      const simplifiedProducts = [];
+    if (!menuJSON || !menuJSON.categories) {
+      return menuJSON; // Si no hay estructura esperada, devolver tal cual
+    }
 
-      // Si menuJSON es un array (estructura actual)
-      if (Array.isArray(menuJSON)) {
-        // Recorrer cada categoría
-        menuJSON.forEach(category => {
-          // Si la categoría tiene items
-          if (category.items && Array.isArray(category.items)) {
-        // Añadir cada item simplificado al array
-        category.items.forEach(product => {
-          if (businessCode === '103') {
-            // Para el negocio 103, incluir información de extras
-            simplifiedProducts.push({
-          _id: product.id || product._id,
-          name: product.name,
-          price: product.price,
-          category: category.name,
-          categoryId: category.id || category._id,
-          extras: product.extras ? product.extras.map(extra => ({
-            _id: extra.id || extra._id,
-            name: extra.name,
-            price: extra.price
-          })) : []
-            });
-          } else {
-            // Para los demás negocios que usan simplificado, mantener estructura básica
-            simplifiedProducts.push({
-          _id: product.id || product.__id,
-          name: product.name,
-          price: product.price,
-            });
-          }
-        });
-          }
+    // Por cada categoría, mantener solo los campos esenciales
+    optimized.categories = menuJSON.categories.map(category => {
+      const simplifiedCategory = {
+        _id: category._id,
+        name: category.name,
+        products: []
+      };
+
+      // Por cada producto, mantener solo los campos esenciales
+      if (category.products && Array.isArray(category.products)) {
+        simplifiedCategory.products = category.products.map(product => {
+          return {
+            _id: product._id,
+            name: product.name,
+            price: product.price,
+            extras: product.extras ? product.extras.map(extra => ({
+              _id: extra._id,
+              name: extra.name,
+              price: extra.price
+            })) : []
+          };
         });
       }
-      // Si menuJSON tiene estructura de objeto con categories
-      else if (menuJSON && menuJSON.categories) {
-        // Recorrer cada categoría
-        menuJSON.categories.forEach(category => {
-          // Si la categoría tiene productos
-          if (category.products && Array.isArray(category.products)) {
-        // Añadir cada producto simplificado al array
-        category.products.forEach(product => {
-          if (businessCode === '103') {
-            // Para el negocio 103, incluir información de extras
-            simplifiedProducts.push({
-          _id: product._id,
-          name: product.name,
-          price: product.price,
-          category: category.name,
-          categoryId: category._id,
-          extras: product.extras ? product.extras.map(extra => ({
-            _id: extra._id,
-            name: extra.name,
-            price: extra.price
-          })) : []
-            });
-          } else {
-            // Para los demás negocios que usan simplificado, mantener estructura básica
-            simplifiedProducts.push({
-          _id: product._id,
-          name: product.name,
-          price: product.price
-            });
-          }
-        });
-          }
-        });
-      }
-      
-      return simplifiedProducts;
-    }
-    
-    // Para el resto de negocios, usar versión extendida
-    const extendedOptimizedProducts = [];
 
-    // Determinar qué estructura de menú estamos manejando
-    if (Array.isArray(menuJSON)) {
-      // Estructura actual donde menuJSON es un array de categorías
-      menuJSON.forEach(category => {
-        if (category.items && Array.isArray(category.items)) {
-          category.items.forEach(product => {
-            extendedOptimizedProducts.push({
-              _id: product.id || product._id,
-              name: product.name,
-              price: product.price,
-              category: category.name,
-              categoryId: category.id || category._id,
-              extras: product.extras ? product.extras.map(extra => ({
-                _id: extra.id || extra._id,
-                name: extra.name,
-                price: extra.price
-              })) : []
-            });
-          });
-        }
-      });
-    }
-    else if (menuJSON && menuJSON.categories) {
-      // Estructura alternativa con objeto que contiene array de categories
-      menuJSON.categories.forEach(category => {
-        if (category.products && Array.isArray(category.products)) {
-          category.products.forEach(product => {
-            extendedOptimizedProducts.push({
-              _id: product._id,
-              name: product.name,
-              price: product.price,
-              category: category.name,
-              categoryId: category._id,
-              extras: product.extras ? product.extras.map(extra => ({
-                _id: extra._id,
-                name: extra.name,
-                price: extra.price
-              })) : []
-            });
-          });
-        }
-      });
-    }
+      return simplifiedCategory;
+    });
 
-    return extendedOptimizedProducts;
-
+    return optimized;
   } catch (error) {
     console.error('Error optimizando menú:', error);
-    return []; // En caso de error, devolver array vacío
-  }
-}
-
-/**
- * Cierra la sesión del usuario después de un pedido en efectivo
- * @param {String} userId - ID del usuario
- * @param {String} businessId - ID del negocio
- * @param {String} whatsappNumber - Número de WhatsApp del usuario
- */
-async function cerrarSesionDespuesDePedidoEnEfectivo(userId, businessId, whatsappNumber) {
-  try {
-    if (!userId || !whatsappNumber) {
-      console.log('No se puede cerrar sesión: Faltan datos de usuario');
-      return;
-    }
-
-    console.log(`Cerrando sesión para el usuario ${whatsappNumber} después del pedido en efectivo`);
-
-    // Obtener datos de la sesión actual de Redis
-    const datosSession = await redisClient.get(`session:${whatsappNumber}`);
-
-    if (!datosSession) {
-      console.log(`No hay sesión activa para el usuario ${whatsappNumber}`);
-      return;
-    }
-
-    // Parsear los datos de la sesión
-    const session = JSON.parse(datosSession);
-
-    // Guardar la sesión completa en la base de datos antes de cerrarla
-    await Session.updateOne(
-      { sessionId: session.sessionId },
-      {
-        $set: {
-          userId: session.userId,
-          startedAt: session.startedAt,
-          lastMessageAt: session.lastMessageAt,
-          isActive: false, // Marcar como inactiva
-          fullHistory: session.fullHistory || [],
-          closedAt: new Date(), // Registrar cuándo se cerró
-          closedReason: 'cash_payment_completed' // Motivo específico del cierre
-        },
-      },
-      { upsert: true }
-    );
-
-    // Eliminar la sesión de Redis
-    await redisClient.del(`session:${whatsappNumber}`);
-
-    // Eliminar el menú en caché si existe
-    if (businessId) {
-      console.log(`Eliminando caché del menú para negocio ${businessId}`);
-      await redisClient.del(`menu:${businessId}`);
-    }
-
-    // Resetear el businessCode del usuario
-    try {
-      console.log(`Reseteando businessCode para usuario ${userId}`);
-      const updateResult = await User.updateOne(
-        { _id: userId },
-        { $set: { businessCode: null } }
-      );
-
-      console.log(`Resultado de reset businessCode: ${JSON.stringify(updateResult)}`);
-
-      if (updateResult.modifiedCount === 0) {
-        console.log(`Advertencia: No se modificó el businessCode del usuario ${userId}`);
-      }
-    } catch (userUpdateError) {
-      console.error('Error al resetear el businessCode del usuario:', userUpdateError);
-    }
-
-    // Eliminar número de mesa
-    await redisClient.del(`tableNumber:${whatsappNumber}`);
-
-    // Borrar la preferencia del idioma
-    await redisClient.del(`userLanguage:${whatsappNumber}`);
-
-    await redisClient.del(`menu:${whatsappNumber}`);
-
-    console.log(`Sesión para el usuario ${whatsappNumber} cerrada correctamente después del pedido en efectivo`);
-
-    // Enviar mensaje final de despedida (opcional)
-    setTimeout(async () => {
-      try {
-        await sendMessage(whatsappNumber,
-          'Gracias, ya hemos tomado su pedido, pero el camarero deberá validarlo manualmente, para evitar esta demora la próxima vez puedes pagar con tarjeta y se enviará directo a su preparación.\n\n' +
-          'Tu sesión ha finalizado. Si deseas realizar un nuevo pedido, simplemente envía un nuevo mensaje.'
-        );
-
-        await sendMessage(whatsappNumber,
-          'Si quieres estar al día de lo último, puedes registrarte en www.whats2want.com.'
-        );
-      } catch (sendError) {
-        console.error('Error enviando mensaje de despedida:', sendError);
-      }
-    }, 3000); // Pequeño retraso para asegurarse de que el mensaje de confirmación de pedido se envía primero
-
-  } catch (error) {
-    console.error('Error al cerrar la sesión después del pedido en efectivo:', error);
+    return menuJSON; // En caso de error, usar el original
   }
 }
