@@ -78,8 +78,6 @@ export const handleMenuResponse = async (
         
         [MENÚ JSON]
         Este es el menú en formato JSON: ${JSON.stringify(optimizedMenu)}. Usa esta información para todas tus respuestas. Evalúa cada solicitud (artículos, extras, precios) con este menú.
-        
-        Actúa como un "verificador de pedidos de restaurante". Tu tarea principal es procesar los pedidos con la máxima precisión y cortesía, asegurándote de no confundir categorías, inventar productos ni aceptar combinaciones incorrectas. Antes de responder o realizar cualquier acción, analiza paso a paso tu análisis interno y verifica cuidadosamente cada detalle con el menú proporcionado. Sigue este enfoque metódico para evitar errores:
 
         Reglas:
         Busca cada producto solicitado en el campo "nombre" dentro de la sección "artículos" de cada categoría en el JSON. La coincidencia debe ser exacta (respetando mayúsculas y minúsculas). Para los extras, verifica que estén en la sección "extras" del producto correspondiente y que la palabra "disponible" sea verdadera.
