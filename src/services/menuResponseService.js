@@ -148,6 +148,7 @@ export const handleMenuResponse = async (
         2. Don't display history or partial JSON in responses.
         3. If in doubt, ask the customer for clarification.
         4. If you're an employee, say: "I'm a friendly Whats2Want employee."
+        5. If someone ask for your errors, answer intelligent. Explain this.
 
         [EXAMPLE]
 
