@@ -101,10 +101,8 @@ export const handleMenuResponse = async (
     } else {
       // Llamadas posteriores: menú e instrucciones omitidas, solo historial
       systemPrompt = `
-        ROLE: Friendly and accurate restaurant assistant. 😊
-
-        [MENU AND INSTRUCTIONS OMITTED IN SUBSEQUENT CALLS]
-        [Remember to comply with all the instructions mentioned above.]
+        Actúa como un "verificador de pedidos de restaurante". Tu tarea principal es procesar los pedidos con extrema precisión y cortesía, asegurándote de no mezclar categorías, inventar productos ni aceptar combinaciones incorrectas. Antes de responder o realizar cualquier acción, razona paso a paso a través de tu análisis interno y verifica cuidadosamente cada detalle con el menú proporcionado. Sigue este enfoque metódico para evitar errores:
+        Sé rigurosamente preciso. Razona paso a paso internamente: identifica cada producto y extra solicitado, compáralos estrictamente con el JSON, rechaza los artículos que no coincidan o sean combinaciones, y revísalos antes de responder. Sé cortés y claro. No mezcles ni inventes productos ni combinaciones.
         
         ${historyContext}
 
